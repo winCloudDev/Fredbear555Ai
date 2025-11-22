@@ -1,5 +1,7 @@
 {
-  "name": "Copy of Fredbear555Ai Engine",
-  "description": "Advanced AI with 150 IQ Hybrid Model. Free and Premium tiers available.",
-  "requestFramePermissions": []
+  "name": "Fredbear555Ai.com",
+  "description": "Fredbear555Ai.com - Advanced Hybrid Intelligence with Deep Research, Image & Video Generation.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }
