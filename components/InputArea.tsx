@@ -1,0 +1,148 @@
+import React, { useRef, useState, useEffect } from 'react';
+import { Send, Paperclip, X, Image as ImageIcon } from 'lucide-react';
+import { Attachment } from '../types';
+
+interface InputAreaProps {
+  onSendMessage: (text: string, attachments: Attachment[]) => void;
+  disabled: boolean;
+}
+
+const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, disabled }) => {
+  const [text, setText] = useState('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+    }
+  }, [text]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleSend = () => {
+    if ((!text.trim() && attachments.length === 0) || disabled) return;
+    onSendMessage(text, attachments);
+    setText('');
+    setAttachments([]);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      if (!file.type.startsWith('image/')) {
+        alert("Currently only image attachments are supported.");
+        return;
+      }
+
+      try {
+        const base64 = await fileToBase64(file);
+        const newAttachment: Attachment = {
+          mimeType: file.type,
+          data: base64.split(',')[1], // remove data url prefix
+          name: file.name
+        };
+        setAttachments([...attachments, newAttachment]);
+      } catch (error) {
+        console.error("Error reading file", error);
+      }
+      
+      // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  return (
+    <div className="border-t border-gray-200 bg-white p-4 md:p-6 sticky bottom-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <div className="max-w-3xl mx-auto">
+        
+        {/* Attachments Preview */}
+        {attachments.length > 0 && (
+          <div className="flex gap-3 mb-3 overflow-x-auto pb-2">
+            {attachments.map((att, i) => (
+              <div key={i} className="relative group shrink-0">
+                <div className="w-16 h-16 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+                   <ImageIcon size={24} className="text-gray-400" />
+                </div>
+                <button 
+                  onClick={() => removeAttachment(i)}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                >
+                  <X size={12} />
+                </button>
+                <span className="text-[10px] text-gray-500 block mt-1 truncate w-16">{att.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="relative flex items-end gap-2 bg-gray-50 border border-gray-200 rounded-2xl p-2 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-inner">
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled}
+            className="p-3 text-gray-400 hover:text-orange-500 transition-colors rounded-xl hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Attach Image"
+          >
+            <Paperclip size={20} />
+          </button>
+          <input 
+            type="file" 
+            ref={fileInputRef}
+            className="hidden" 
+            accept="image/*"
+            onChange={handleFileChange}
+          />
+
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+            placeholder="Message FredbearAi..."
+            className="flex-1 bg-transparent border-none focus:ring-0 text-gray-800 placeholder-gray-400 resize-none py-3 max-h-[120px] overflow-y-auto text-base"
+            rows={1}
+          />
+
+          <button 
+            onClick={handleSend}
+            disabled={disabled || (!text.trim() && attachments.length === 0)}
+            className={`p-3 rounded-xl transition-all duration-200
+              ${(!text.trim() && attachments.length === 0) || disabled
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+                : 'bg-orange-600 text-white hover:bg-orange-500 shadow-md shadow-orange-500/20'
+              }`}
+          >
+            <Send size={20} />
+          </button>
+        </div>
+        <div className="text-center mt-2">
+            <p className="text-[10px] text-gray-400">AI may display inaccurate info, including about people, so double-check its responses. Auto-save enabled.</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default InputArea;
