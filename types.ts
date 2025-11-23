@@ -5,7 +5,7 @@ export enum ModelId {
 }
 
 export type UserTier = 'free' | 'premium' | null;
-export type ChatMode = 'chat' | 'image' | 'video';
+export type ChatMode = 'chat' | 'image' | 'video' | 'math' | 'checker';
 
 export interface ChatMessage {
   id: string;

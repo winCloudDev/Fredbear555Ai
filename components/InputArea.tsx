@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Send, Paperclip, X, Image as ImageIcon, Mic, Globe, Clapperboard, Palette, MessageSquare } from 'lucide-react';
+import { Send, Paperclip, X, Image as ImageIcon, Mic, Globe, Clapperboard, Palette, MessageSquare, Calculator, ShieldCheck } from 'lucide-react';
 import { Attachment, AppConfig } from '../types';
 
 interface InputAreaProps {
@@ -92,7 +92,6 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, config, onConfigCh
         console.error("Error reading file", error);
       }
       
-      // Reset input
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -111,7 +110,7 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, config, onConfigCh
   };
 
   // Mode Helper
-  const setMode = (mode: 'chat' | 'image' | 'video') => {
+  const setMode = (mode: 'chat' | 'image' | 'video' | 'math' | 'checker') => {
       onConfigChange({ ...config, activeMode: mode });
   };
 
@@ -120,7 +119,7 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, config, onConfigCh
   };
 
   return (
-    <div className="border-t border-gray-200 bg-white p-4 md:p-6 sticky bottom-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+    <div className="border-t border-yellow-500/20 bg-neutral-900/95 backdrop-blur-md p-4 md:p-6 sticky bottom-0 z-10 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.5)]">
       <div className="max-w-3xl mx-auto">
         
         {/* SMART TOOLBAR */}
@@ -128,49 +127,73 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, config, onConfigCh
             {/* Chat Mode */}
             <button 
                 onClick={() => setMode('chat')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border shrink-0
                   ${config.activeMode === 'chat' 
-                    ? 'bg-gray-900 text-white border-gray-900' 
-                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}
+                    ? 'bg-yellow-500 text-black border-yellow-500 shadow-[0_0_10px_-2px_rgba(234,179,8,0.5)]' 
+                    : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:border-yellow-500/30 hover:text-yellow-200'}
                 `}
             >
                 <MessageSquare size={14} /> Chat
             </button>
 
+            {/* Math Solver Mode */}
+            <button 
+                onClick={() => setMode('math')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border shrink-0
+                  ${config.activeMode === 'math' 
+                    ? 'bg-indigo-500 text-white border-indigo-500 shadow-[0_0_10px_-2px_rgba(99,102,241,0.5)]' 
+                    : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:border-indigo-500/30 hover:text-indigo-200'}
+                `}
+            >
+                <Calculator size={14} /> Math Solver
+            </button>
+
+            {/* Checker Mode */}
+            <button 
+                onClick={() => setMode('checker')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border shrink-0
+                  ${config.activeMode === 'checker' 
+                    ? 'bg-teal-500 text-white border-teal-500 shadow-[0_0_10px_-2px_rgba(20,184,166,0.5)]' 
+                    : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:border-teal-500/30 hover:text-teal-200'}
+                `}
+            >
+                <ShieldCheck size={14} /> AI Checker
+            </button>
+
             {/* Web Search Toggle */}
             <button 
                 onClick={toggleWeb}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border shrink-0
                   ${config.webSearch
-                    ? 'bg-blue-600 text-white border-blue-600' 
-                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}
+                    ? 'bg-blue-500 text-white border-blue-500 shadow-[0_0_10px_-2px_rgba(59,130,246,0.5)]' 
+                    : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:border-blue-500/30 hover:text-blue-200'}
                 `}
             >
-                <Globe size={14} /> {config.webSearch ? 'Web: ON' : 'Web Search'}
+                <Globe size={14} /> {config.webSearch ? 'Web: ON' : 'Web'}
             </button>
 
             {/* Image Mode */}
             <button 
                 onClick={() => setMode('image')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border shrink-0
                   ${config.activeMode === 'image' 
-                    ? 'bg-purple-600 text-white border-purple-600' 
-                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}
+                    ? 'bg-purple-500 text-white border-purple-500 shadow-[0_0_10px_-2px_rgba(168,85,247,0.5)]' 
+                    : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:border-purple-500/30 hover:text-purple-200'}
                 `}
             >
-                <Palette size={14} /> Make Image
+                <Palette size={14} /> Image
             </button>
 
             {/* Video Mode */}
             <button 
                 onClick={() => setMode('video')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border shrink-0
                   ${config.activeMode === 'video' 
-                    ? 'bg-red-600 text-white border-red-600' 
-                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}
+                    ? 'bg-red-500 text-white border-red-500 shadow-[0_0_10px_-2px_rgba(239,68,68,0.5)]' 
+                    : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:border-red-500/30 hover:text-red-200'}
                 `}
             >
-                <Clapperboard size={14} /> Make Video
+                <Clapperboard size={14} /> Video
             </button>
         </div>
 
@@ -179,8 +202,8 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, config, onConfigCh
           <div className="flex gap-3 mb-3 overflow-x-auto pb-2">
             {attachments.map((att, i) => (
               <div key={i} className="relative group shrink-0">
-                <div className="w-16 h-16 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
-                   <ImageIcon size={24} className="text-gray-400" />
+                <div className="w-16 h-16 rounded-lg border border-neutral-700 bg-neutral-800 flex items-center justify-center overflow-hidden">
+                   <ImageIcon size={24} className="text-neutral-500" />
                 </div>
                 <button 
                   onClick={() => removeAttachment(i)}
@@ -188,20 +211,23 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, config, onConfigCh
                 >
                   <X size={12} />
                 </button>
-                <span className="text-[10px] text-gray-500 block mt-1 truncate w-16">{att.name}</span>
+                <span className="text-[10px] text-neutral-400 block mt-1 truncate w-16">{att.name}</span>
               </div>
             ))}
           </div>
         )}
 
-        <div className={`relative flex items-end gap-2 bg-gray-50 border rounded-2xl p-2 transition-all shadow-inner 
-            ${config.activeMode === 'image' ? 'border-purple-200 bg-purple-50/30' : ''}
-            ${config.activeMode === 'video' ? 'border-red-200 bg-red-50/30' : 'border-gray-200 focus-within:border-orange-400 focus-within:bg-white'}
+        <div className={`relative flex items-end gap-2 bg-neutral-800/50 border rounded-2xl p-2 transition-all shadow-inner 
+            ${config.activeMode === 'image' ? 'border-purple-500/30 bg-purple-900/10' : ''}
+            ${config.activeMode === 'video' ? 'border-red-500/30 bg-red-900/10' : ''}
+            ${config.activeMode === 'math' ? 'border-indigo-500/30 bg-indigo-900/10' : ''}
+            ${config.activeMode === 'checker' ? 'border-teal-500/30 bg-teal-900/10' : ''}
+            ${config.activeMode === 'chat' ? 'border-neutral-700 focus-within:border-yellow-500/50 focus-within:bg-neutral-800 focus-within:shadow-[0_0_15px_-5px_rgba(234,179,8,0.1)]' : ''}
         `}>
           <button 
             onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || config.activeMode !== 'chat'}
-            className="p-3 text-gray-400 hover:text-orange-500 transition-colors rounded-xl hover:bg-orange-50 disabled:opacity-30 disabled:cursor-not-allowed"
+            disabled={disabled || config.activeMode !== 'chat' && config.activeMode !== 'math' && config.activeMode !== 'checker'}
+            className="p-3 text-neutral-400 hover:text-yellow-400 transition-colors rounded-xl hover:bg-yellow-500/10 disabled:opacity-30 disabled:cursor-not-allowed"
             title="Attach Image"
           >
             <Paperclip size={20} />
@@ -218,8 +244,8 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, config, onConfigCh
            <button 
             onClick={toggleVoice}
             disabled={disabled}
-            className={`p-3 transition-all rounded-xl hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed
-              ${isListening ? 'text-red-600 bg-red-50 animate-pulse ring-2 ring-red-200' : 'text-gray-400 hover:text-red-500'}
+            className={`p-3 transition-all rounded-xl hover:bg-red-900/20 disabled:opacity-30 disabled:cursor-not-allowed
+              ${isListening ? 'text-red-500 bg-red-900/20 animate-pulse ring-1 ring-red-500/50' : 'text-neutral-400 hover:text-red-400'}
             `}
             title="Voice to Text"
           >
@@ -233,34 +259,44 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, config, onConfigCh
             onKeyDown={handleKeyDown}
             disabled={disabled}
             placeholder={
-                config.activeMode === 'image' ? "Describe the image you want to create..." :
-                config.activeMode === 'video' ? "Describe the video you want to generate..." :
+                config.activeMode === 'image' ? "Describe image to create..." :
+                config.activeMode === 'video' ? "Describe video to generate..." :
+                config.activeMode === 'math' ? "Enter math problem (or upload photo)..." :
+                config.activeMode === 'checker' ? "Paste text/code to audit..." :
                 isListening ? "Listening..." : "Message FredbearAi..."
             }
-            className="flex-1 bg-transparent border-none focus:ring-0 text-gray-800 placeholder-gray-400 resize-none py-3 max-h-[120px] overflow-y-auto text-base"
+            className="flex-1 bg-transparent border-none focus:ring-0 text-yellow-100 placeholder-neutral-500 resize-none py-3 max-h-[120px] overflow-y-auto text-base"
             rows={1}
           />
 
           <button 
             onClick={handleSend}
             disabled={disabled || (!text.trim() && attachments.length === 0)}
-            className={`p-3 rounded-xl transition-all duration-200
+            className={`p-3 rounded-xl transition-all duration-200 shadow-lg
               ${(!text.trim() && attachments.length === 0) || disabled
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
-                : config.activeMode === 'image' ? 'bg-purple-600 text-white hover:bg-purple-500 shadow-md shadow-purple-500/20'
-                : config.activeMode === 'video' ? 'bg-red-600 text-white hover:bg-red-500 shadow-md shadow-red-500/20'
-                : 'bg-orange-600 text-white hover:bg-orange-500 shadow-md shadow-orange-500/20'
+                ? 'bg-neutral-700 text-neutral-500 cursor-not-allowed' 
+                : config.activeMode === 'image' ? 'bg-purple-600 text-white hover:bg-purple-500 hover:shadow-purple-500/30'
+                : config.activeMode === 'video' ? 'bg-red-600 text-white hover:bg-red-500 hover:shadow-red-500/30'
+                : config.activeMode === 'math' ? 'bg-indigo-600 text-white hover:bg-indigo-500 hover:shadow-indigo-500/30'
+                : config.activeMode === 'checker' ? 'bg-teal-600 text-white hover:bg-teal-500 hover:shadow-teal-500/30'
+                : 'bg-yellow-500 text-black hover:bg-yellow-400 hover:shadow-yellow-500/30'
               }`}
           >
-            {config.activeMode === 'image' ? <Palette size={20}/> : config.activeMode === 'video' ? <Clapperboard size={20}/> : <Send size={20} />}
+            {config.activeMode === 'image' ? <Palette size={20}/> : 
+             config.activeMode === 'video' ? <Clapperboard size={20}/> : 
+             config.activeMode === 'math' ? <Calculator size={20} /> :
+             config.activeMode === 'checker' ? <ShieldCheck size={20} /> :
+             <Send size={20} />}
           </button>
         </div>
         
         {/* Mode Indicator / Disclaimer */}
         <div className="text-center mt-2 flex justify-center gap-2">
-            {config.activeMode === 'image' && <span className="text-[10px] text-purple-600 font-bold">IMAGE GENERATION MODE</span>}
-            {config.activeMode === 'video' && <span className="text-[10px] text-red-600 font-bold">VIDEO GENERATION MODE (SLOW)</span>}
-            <p className="text-[10px] text-gray-400">AI may display inaccurate info. Auto-save enabled.</p>
+            {config.activeMode === 'image' && <span className="text-[10px] text-purple-400 font-bold tracking-wide">IMAGE MODE</span>}
+            {config.activeMode === 'video' && <span className="text-[10px] text-red-400 font-bold tracking-wide">VIDEO MODE (SLOW)</span>}
+            {config.activeMode === 'math' && <span className="text-[10px] text-indigo-400 font-bold tracking-wide">MATH SOLVER MODE</span>}
+            {config.activeMode === 'checker' && <span className="text-[10px] text-teal-400 font-bold tracking-wide">AI CHECKER MODE</span>}
+            <p className="text-[10px] text-neutral-600">AI may display inaccurate info. Auto-save enabled.</p>
         </div>
       </div>
     </div>

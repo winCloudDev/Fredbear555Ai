@@ -9,66 +9,85 @@ import { AppConfig, ChatMessage, LoadingState, Attachment, UserTier, ModelId, Ch
 import { DEFAULT_CONFIG, MODEL_OPTIONS } from './constants';
 import { streamGeminiResponse, generateImage, generateVideo } from './services/geminiService';
 
-const STORAGE_KEY_SESSIONS = 'fredbear_sessions_v1';
-const STORAGE_KEY_CONFIG = 'fredbear_config';
-const STORAGE_KEY_TIER = 'fredbear_tier';
-const STORAGE_KEY_CURRENT_ID = 'fredbear_current_id';
-
 const App: React.FC = () => {
-  // --- PERSISTENCE CHECK ---
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-      // Only authenticate if we have a tier AND a user record (simulated)
-      // Note: AuthFlow handles the user record check, here we check tier.
-      return !!localStorage.getItem(STORAGE_KEY_TIER);
-  });
+  // --- STATE ---
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<string>('');
+  const [userTier, setUserTier] = useState<UserTier>(null);
+
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string>('');
   
-  const [userTier, setUserTier] = useState<UserTier>(() => {
-      return localStorage.getItem(STORAGE_KEY_TIER) as UserTier || null;
-  });
-
-  const [sessions, setSessions] = useState<ChatSession[]>(() => {
-      const saved = localStorage.getItem(STORAGE_KEY_SESSIONS);
-      return saved ? JSON.parse(saved) : [];
-  });
-
-  const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
-      const lastId = localStorage.getItem(STORAGE_KEY_CURRENT_ID);
-      const savedSessions = localStorage.getItem(STORAGE_KEY_SESSIONS);
-      const parsedSessions = savedSessions ? JSON.parse(savedSessions) : [];
-      
-      if (lastId && parsedSessions.some((s: any) => s.id === lastId)) {
-          return lastId;
-      }
-      return parsedSessions.length > 0 ? parsedSessions[0].id : '';
-  });
-
-  const [config, setConfig] = useState<AppConfig>(() => {
-      const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
-      return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
-  });
-
+  const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loadingState, setLoadingState] = useState<LoadingState>('idle');
 
+  // --- SESSION MANAGEMENT PER USER ---
+  // When currentUser changes (login), load THEIR sessions
   useEffect(() => {
-      if (sessions.length === 0) {
-          createNewSession();
+    if (currentUser) {
+        const userSessionKey = `fredbear_sessions_${currentUser}`;
+        const savedSessions = localStorage.getItem(userSessionKey);
+        const userConfigKey = `fredbear_config_${currentUser}`;
+        const savedConfig = localStorage.getItem(userConfigKey);
+        
+        let loadedSessions = savedSessions ? JSON.parse(savedSessions) : [];
+        
+        if (loadedSessions.length === 0) {
+            const newId = Date.now().toString();
+            loadedSessions = [{
+                id: newId,
+                title: 'New Chat',
+                messages: [],
+                lastModified: Date.now(),
+                preview: 'Empty chat...'
+            }];
+            setCurrentSessionId(newId);
+        } else {
+            // Try to restore last active session
+            const lastId = localStorage.getItem(`fredbear_last_session_${currentUser}`);
+            if (lastId && loadedSessions.some((s: any) => s.id === lastId)) {
+                setCurrentSessionId(lastId);
+            } else {
+                setCurrentSessionId(loadedSessions[0].id);
+            }
+        }
+        
+        setSessions(loadedSessions);
+
+        if (savedConfig) {
+            setConfig(JSON.parse(savedConfig));
+        } else {
+            // Initialize default config based on tier
+            setConfig({
+                ...DEFAULT_CONFIG,
+                model: userTier === 'premium' ? ModelId.PremiumTier : ModelId.FreeTier,
+            });
+        }
+    }
+  }, [currentUser, userTier]);
+
+  // Save sessions whenever they change (Specific to Current User)
+  useEffect(() => {
+      if (currentUser && sessions.length > 0) {
+          localStorage.setItem(`fredbear_sessions_${currentUser}`, JSON.stringify(sessions));
       }
-  }, []);
+  }, [sessions, currentUser]);
 
-  const messages = sessions.find(s => s.id === currentSessionId)?.messages || [];
-
+  // Save current session ID preference
   useEffect(() => {
-      localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
-  }, [sessions]);
+      if (currentUser && currentSessionId) {
+          localStorage.setItem(`fredbear_last_session_${currentUser}`, currentSessionId);
+      }
+  }, [currentSessionId, currentUser]);
 
+  // Save config preference
   useEffect(() => {
-      if (currentSessionId) localStorage.setItem(STORAGE_KEY_CURRENT_ID, currentSessionId);
-  }, [currentSessionId]);
+      if (currentUser) {
+           localStorage.setItem(`fredbear_config_${currentUser}`, JSON.stringify(config));
+      }
+  }, [config, currentUser]);
 
-  useEffect(() => {
-      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
-  }, [config]);
 
   const createNewSession = () => {
       const newId = Date.now().toString();
@@ -117,26 +136,23 @@ const App: React.FC = () => {
       }
   };
 
-  const handleAuthentication = (tier: UserTier) => {
+  const handleAuthentication = (tier: UserTier, username: string) => {
     setUserTier(tier);
+    setCurrentUser(username);
     setIsAuthenticated(true);
-    localStorage.setItem(STORAGE_KEY_TIER, tier as string);
-    
-    if (!localStorage.getItem(STORAGE_KEY_CONFIG)) {
-        setConfig({
-            ...DEFAULT_CONFIG,
-            model: tier === 'premium' ? ModelId.PremiumTier : ModelId.FreeTier,
-        });
-    }
   };
 
   const handleLogout = () => {
+      localStorage.removeItem('fredbear_active_user'); // Clear auto-login
       setIsAuthenticated(false);
       setUserTier(null);
-      localStorage.removeItem(STORAGE_KEY_TIER);
+      setCurrentUser('');
+      setSessions([]); // Clear current view
   };
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  const messages = sessions.find(s => s.id === currentSessionId)?.messages || [];
 
   const handleSendMessage = useCallback(async (text: string, attachments: Attachment[]) => {
     const userMsgId = Date.now().toString();
@@ -164,15 +180,12 @@ const App: React.FC = () => {
 
         try {
             const base64Image = await generateImage(text);
-            // Store image as markdown image or attachment? Markdown is easier for renderer
             if (base64Image.startsWith('Error')) {
                 aiContent = base64Image;
             } else {
-                // We construct a markdown image tag
                 aiContent = `Here is your generated image:\n\n![Generated Image](${base64Image})`;
             }
             
-            // Final Update
             setSessions(prev => prev.map(s => s.id === currentSessionId ? {
                 ...s, messages: s.messages.map(m => m.id === aiMsgId ? { ...m, content: aiContent } : m)
             } : s));
@@ -191,13 +204,7 @@ const App: React.FC = () => {
         
         try {
             const videoUrl = await generateVideo(text);
-             aiContent = `Here is your generated video:\n\n<video controls src="${videoUrl}" width="100%" class="rounded-lg"></video>`;
-             
-             // Final Update - Note: RenderButton needs to handle HTML or we rely on markdown HTML support?
-             // MarkdownRenderer might sanitize this. For now, we can use a markdown video link or simple text.
-             // Since MarkdownRenderer in existing code doesn't show custom HTML, let's change strategy.
-             // We will just assume the user wants to download it or standard video tag support.
-             // For safety in this snippet, I'll assume the renderer can handle it or I'll use a link.
+             aiContent = `Here is your generated video:\n\n<video controls src="${videoUrl}" width="100%" class="rounded-lg border-2 border-yellow-500/50 shadow-lg shadow-yellow-500/20"></video>`;
         } catch (e: any) {
              aiContent = "Video generation failed: " + e.message;
         }
@@ -242,14 +249,14 @@ const App: React.FC = () => {
     }
     
     setLoadingState('idle');
-  }, [config, messages, currentSessionId]);
+  }, [config, messages, currentSessionId, currentUser]); // Added currentUser dependency
 
   if (!isAuthenticated) {
     return <AuthFlow onAuthenticated={handleAuthentication} />;
   }
 
   return (
-    <div className="flex flex-col h-screen bg-white text-gray-900 overflow-hidden">
+    <div className="flex flex-col h-screen bg-neutral-950 text-yellow-100 overflow-hidden font-sans selection:bg-yellow-500/30 selection:text-yellow-200">
       <Header toggleSidebar={toggleSidebar} userTier={userTier} onLogout={handleLogout} />
       
       <div className="flex flex-1 overflow-hidden relative">
@@ -266,7 +273,7 @@ const App: React.FC = () => {
           onDeleteSession={handleDeleteSession}
         />
         
-        <main className="flex-1 flex flex-col relative w-full transition-all duration-300">
+        <main className="flex-1 flex flex-col relative w-full transition-all duration-300 bg-neutral-950">
           <MessageList 
             messages={messages} 
             isLoading={loadingState === 'streaming'}

@@ -120,13 +120,19 @@ export const streamGeminiResponse = async (
   // 3. Configure the Request
   let instructions = config.systemInstruction;
   
+  // Apply Mode-Specific Instructions
   if (config.makeAppMode) {
       instructions = "You are a Senior Software Architect and Master Developer. Provide full directory structures, complete source code (no placeholders), and compilation instructions. Prefer Python, C#, or Node.js.";
+  } else if (config.activeMode === 'math') {
+      instructions = "You are a strict and precise Mathematician. 1. Analyze the problem. 2. Show step-by-step derivation. 3. Verify the result. 4. Use LaTeX for formulas where appropriate. 5. If the user provides an image, solve the problem in the image.";
+  } else if (config.activeMode === 'checker') {
+      instructions = "You are an AI QA Auditor and Fact Checker. Your job is to ANALYZE the input for: 1. Logical errors. 2. Code bugs. 3. Factual inaccuracies. 4. AI-generated patterns. Provide a 'Confidence Score', 'Error List', and 'Corrected Version'.";
   }
+
   if (config.fastThink) instructions += " Prioritize speed and brevity.";
   
   const generateConfig: any = {
-    temperature: config.temperature,
+    temperature: config.activeMode === 'math' || config.activeMode === 'checker' ? 0.2 : config.temperature, // Lower temp for math/checking
     systemInstruction: instructions,
   };
 
