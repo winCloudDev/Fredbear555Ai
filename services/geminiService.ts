@@ -2,8 +2,64 @@
 import { GoogleGenAI, Content, Part, GenerateContentResponse } from "@google/genai";
 import { ChatMessage, AppConfig, Attachment } from "../types";
 
-// Initialize client with process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to get AI instance
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+export const generateImage = async (prompt: string): Promise<string> => {
+  const ai = getAI();
+  // Using gemini-2.5-flash-image for general image generation
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-image',
+    contents: {
+      parts: [{ text: prompt }]
+    },
+    config: {
+      imageConfig: {
+        aspectRatio: "1:1",
+        // imageSize: "1K" // Only for 3-pro-image-preview
+      }
+    }
+  });
+
+  // Extract image from response
+  for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if (part.inlineData) {
+      return `data:image/png;base64,${part.inlineData.data}`;
+    }
+  }
+  return "Error: No image generated.";
+};
+
+export const generateVideo = async (prompt: string): Promise<string> => {
+  const ai = getAI();
+  
+  // Veo generation requires waiting for operation
+  let operation = await ai.models.generateVideos({
+    model: 'veo-3.1-fast-generate-preview',
+    prompt: prompt,
+    config: {
+      numberOfVideos: 1,
+      resolution: '720p',
+      aspectRatio: '16:9'
+    }
+  });
+
+  // Polling loop
+  while (!operation.done) {
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5s
+    operation = await ai.operations.getVideosOperation({ operation: operation });
+  }
+
+  const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
+  if (!videoUri) throw new Error("Video generation failed");
+
+  // Fetch the actual video bytes using the API key
+  const response = await fetch(`${videoUri}&key=${process.env.API_KEY}`);
+  const blob = await response.blob();
+  
+  // Convert blob to object URL for display
+  return URL.createObjectURL(blob);
+};
 
 export const streamGeminiResponse = async (
   history: ChatMessage[],
@@ -13,8 +69,12 @@ export const streamGeminiResponse = async (
   onChunk: (text: string) => void
 ): Promise<string> => {
   
+  const ai = getAI();
+
   // 1. Prepare History for the API
-  const contents: Content[] = history.map((msg) => {
+  const contents: Content[] = history
+    .filter(msg => msg.role !== 'model' || msg.content) // Filter out empty model messages if any
+    .map((msg) => {
     const parts: Part[] = [];
     
     // Add images if present
@@ -58,12 +118,12 @@ export const streamGeminiResponse = async (
   });
 
   // 3. Configure the Request
-  // Adjust system instruction based on Core prompt
   let instructions = config.systemInstruction;
-  if (config.fastThink) instructions += " Prioritize speed and brevity.";
-  if (config.doubleResearch) {
-      instructions += " ACTIVATE DEEP RESEARCH MODE: 1. Analyze the user query from multiple perspectives (simulating consensus between ChatGPT, Gemini, and Claude). 2. Use the search tool extensively to find high-quality sources. 3. Synthesize a comprehensive, deeply researched answer.";
+  
+  if (config.makeAppMode) {
+      instructions = "You are a Senior Software Architect and Master Developer. Provide full directory structures, complete source code (no placeholders), and compilation instructions. Prefer Python, C#, or Node.js.";
   }
+  if (config.fastThink) instructions += " Prioritize speed and brevity.";
   
   const generateConfig: any = {
     temperature: config.temperature,
@@ -72,18 +132,18 @@ export const streamGeminiResponse = async (
 
   // Thinking Logic
   if (config.model.includes('preview')) {
-     // Only applied to models that support thinking (Premium tier usually)
      if (config.moreThink) {
-         generateConfig.thinkingConfig = { thinkingBudget: 16000 }; // High budget
+         generateConfig.thinkingConfig = { thinkingBudget: 16000 }; 
      } else if (config.thinkingBudget > 0) {
          generateConfig.thinkingConfig = { thinkingBudget: config.thinkingBudget };
      } else if (config.fastThink) {
-         generateConfig.thinkingConfig = { thinkingBudget: 0 }; // Disable thinking for speed
+         generateConfig.thinkingConfig = { thinkingBudget: 0 }; 
      }
   }
 
-  // Tool Config
-  if (config.doubleResearch) {
+  // Tool Config - SEARCH or DOUBLE RESEARCH
+  // Explicitly enable Google Search if webSearch is ON or doubleResearch is ON
+  if (config.doubleResearch || config.webSearch) {
       generateConfig.tools = [{ googleSearch: {} }];
   }
 

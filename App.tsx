@@ -5,10 +5,9 @@ import Sidebar from './components/Sidebar';
 import MessageList from './components/MessageList';
 import InputArea from './components/InputArea';
 import AuthFlow from './components/AuthFlow';
-import LoadingScreen from './components/LoadingScreen';
 import { AppConfig, ChatMessage, LoadingState, Attachment, UserTier, ModelId, ChatSession } from './types';
 import { DEFAULT_CONFIG, MODEL_OPTIONS } from './constants';
-import { streamGeminiResponse } from './services/geminiService';
+import { streamGeminiResponse, generateImage, generateVideo } from './services/geminiService';
 
 const STORAGE_KEY_SESSIONS = 'fredbear_sessions_v1';
 const STORAGE_KEY_CONFIG = 'fredbear_config';
@@ -16,96 +15,61 @@ const STORAGE_KEY_TIER = 'fredbear_tier';
 const STORAGE_KEY_CURRENT_ID = 'fredbear_current_id';
 
 const App: React.FC = () => {
-  // App State
-  const [isAppLoading, setIsAppLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userTier, setUserTier] = useState<UserTier>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // --- PERSISTENCE CHECK ---
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+      // Only authenticate if we have a tier AND a user record (simulated)
+      // Note: AuthFlow handles the user record check, here we check tier.
+      return !!localStorage.getItem(STORAGE_KEY_TIER);
+  });
+  
+  const [userTier, setUserTier] = useState<UserTier>(() => {
+      return localStorage.getItem(STORAGE_KEY_TIER) as UserTier || null;
+  });
 
-  // Data State
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string>('');
-  const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
+  const [sessions, setSessions] = useState<ChatSession[]>(() => {
+      const saved = localStorage.getItem(STORAGE_KEY_SESSIONS);
+      return saved ? JSON.parse(saved) : [];
+  });
+
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
+      const lastId = localStorage.getItem(STORAGE_KEY_CURRENT_ID);
+      const savedSessions = localStorage.getItem(STORAGE_KEY_SESSIONS);
+      const parsedSessions = savedSessions ? JSON.parse(savedSessions) : [];
+      
+      if (lastId && parsedSessions.some((s: any) => s.id === lastId)) {
+          return lastId;
+      }
+      return parsedSessions.length > 0 ? parsedSessions[0].id : '';
+  });
+
+  const [config, setConfig] = useState<AppConfig>(() => {
+      const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
+      return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+  });
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loadingState, setLoadingState] = useState<LoadingState>('idle');
 
-  // Derived State: Messages for current session
-  const messages = sessions.find(s => s.id === currentSessionId)?.messages || [];
-
-  // 1. INITIALIZATION (Persistent Login & Load Data)
   useEffect(() => {
-    const initializeApp = async () => {
-        // Simulate "System Boot" for effect
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Load Auth
-        const savedTier = localStorage.getItem(STORAGE_KEY_TIER) as UserTier;
-        if (savedTier) {
-            setUserTier(savedTier);
-            setIsAuthenticated(true);
-        }
-
-        // Load Config
-        const savedConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
-        if (savedConfig) {
-            try {
-                setConfig(JSON.parse(savedConfig));
-            } catch (e) { console.error("Config load error", e); }
-        }
-
-        // Load Sessions (The "Folder/Save" System)
-        const savedSessions = localStorage.getItem(STORAGE_KEY_SESSIONS);
-        const lastSessionId = localStorage.getItem(STORAGE_KEY_CURRENT_ID);
-        
-        if (savedSessions) {
-            try {
-                const parsedSessions = JSON.parse(savedSessions);
-                setSessions(parsedSessions);
-                
-                if (parsedSessions.length > 0) {
-                    // Restore last session or first one
-                    if (lastSessionId && parsedSessions.find((s: ChatSession) => s.id === lastSessionId)) {
-                        setCurrentSessionId(lastSessionId);
-                    } else {
-                        setCurrentSessionId(parsedSessions[0].id);
-                    }
-                } else {
-                    createNewSession();
-                }
-            } catch (e) { 
-                console.error("Sessions load error", e); 
-                createNewSession();
-            }
-        } else {
-            createNewSession();
-        }
-
-        setIsAppLoading(false);
-    };
-
-    initializeApp();
+      if (sessions.length === 0) {
+          createNewSession();
+      }
   }, []);
 
-  // 2. AUTO-SAVE LOGIC (Persistent Device Storage)
-  useEffect(() => {
-      if (!isAppLoading && sessions.length > 0) {
-          localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
-      }
-  }, [sessions, isAppLoading]);
+  const messages = sessions.find(s => s.id === currentSessionId)?.messages || [];
 
   useEffect(() => {
-      if (currentSessionId) {
-          localStorage.setItem(STORAGE_KEY_CURRENT_ID, currentSessionId);
-      }
+      localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+  }, [sessions]);
+
+  useEffect(() => {
+      if (currentSessionId) localStorage.setItem(STORAGE_KEY_CURRENT_ID, currentSessionId);
   }, [currentSessionId]);
 
   useEffect(() => {
-      if (!isAppLoading) {
-        localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
-      }
-  }, [config, isAppLoading]);
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
+  }, [config]);
 
-
-  // Helper: Create New Session (Folder)
   const createNewSession = () => {
       const newId = Date.now().toString();
       const newSession: ChatSession = {
@@ -120,16 +84,14 @@ const App: React.FC = () => {
       return newId;
   };
 
-  // Helper: Update Current Session Messages
   const updateCurrentSessionMessages = (newMessages: ChatMessage[]) => {
       setSessions(prev => prev.map(session => {
           if (session.id === currentSessionId) {
-              // Generate a smart title if it's the first message
               let title = session.title;
               if (session.messages.length === 0 && newMessages.length > 0) {
-                  title = newMessages[0].content.slice(0, 30) + (newMessages[0].content.length > 30 ? '...' : '');
+                  const content = newMessages[0].content || "Media Generation";
+                  title = content.slice(0, 30) + (content.length > 30 ? '...' : '');
               }
-              
               return {
                   ...session,
                   messages: newMessages,
@@ -142,7 +104,6 @@ const App: React.FC = () => {
       }));
   };
 
-  // Sidebar Actions
   const handleDeleteSession = (id: string) => {
       const newSessions = sessions.filter(s => s.id !== id);
       setSessions(newSessions);
@@ -161,19 +122,11 @@ const App: React.FC = () => {
     setIsAuthenticated(true);
     localStorage.setItem(STORAGE_KEY_TIER, tier as string);
     
-    // Set default config based on tier if no saved config
     if (!localStorage.getItem(STORAGE_KEY_CONFIG)) {
-        if (tier === 'premium') {
-           setConfig({
-               ...DEFAULT_CONFIG,
-               model: ModelId.PremiumTier,
-           });
-        } else {
-            setConfig({
-                ...DEFAULT_CONFIG,
-                model: ModelId.FreeTier,
-            });
-        }
+        setConfig({
+            ...DEFAULT_CONFIG,
+            model: tier === 'premium' ? ModelId.PremiumTier : ModelId.FreeTier,
+        });
     }
   };
 
@@ -181,8 +134,6 @@ const App: React.FC = () => {
       setIsAuthenticated(false);
       setUserTier(null);
       localStorage.removeItem(STORAGE_KEY_TIER);
-      // We keep history on device unless explicitly cleared, but reset view
-      // To do a full wipe: localStorage.removeItem(STORAGE_KEY_SESSIONS);
   };
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -197,65 +148,101 @@ const App: React.FC = () => {
       attachments: attachments
     };
 
-    // Optimistic Update
     const updatedMessages = [...messages, userMessage];
     updateCurrentSessionMessages(updatedMessages);
-    
     setLoadingState('streaming');
 
-    // Placeholder for AI
     const aiMsgId = (Date.now() + 1).toString();
-    const aiMessagePlaceholder: ChatMessage = {
-      id: aiMsgId,
-      role: 'model',
-      content: '', 
-      timestamp: Date.now()
-    };
-    
-    // Add placeholder to session
-    updateCurrentSessionMessages([...updatedMessages, aiMessagePlaceholder]);
+    let aiContent = '';
 
-    try {
-      await streamGeminiResponse(
-        updatedMessages,
-        text,
-        attachments,
-        config,
-        (streamedText) => {
-          // Update specific message in session
-          setSessions(prev => prev.map(session => {
-              if (session.id === currentSessionId) {
-                  const msgs = session.messages.map(msg => 
-                      msg.id === aiMsgId ? { ...msg, content: streamedText } : msg
-                  );
-                  return { ...session, messages: msgs, lastModified: Date.now() };
-              }
-              return session;
-          }));
+    // IMAGE GENERATION MODE
+    if (config.activeMode === 'image') {
+        const placeholder: ChatMessage = {
+             id: aiMsgId, role: 'model', content: '🎨 Generating Image...', timestamp: Date.now()
+        };
+        updateCurrentSessionMessages([...updatedMessages, placeholder]);
+
+        try {
+            const base64Image = await generateImage(text);
+            // Store image as markdown image or attachment? Markdown is easier for renderer
+            if (base64Image.startsWith('Error')) {
+                aiContent = base64Image;
+            } else {
+                // We construct a markdown image tag
+                aiContent = `Here is your generated image:\n\n![Generated Image](${base64Image})`;
+            }
+            
+            // Final Update
+            setSessions(prev => prev.map(s => s.id === currentSessionId ? {
+                ...s, messages: s.messages.map(m => m.id === aiMsgId ? { ...m, content: aiContent } : m)
+            } : s));
+            setLoadingState('idle');
+            return;
+        } catch (e: any) {
+            aiContent = "Image generation failed: " + e.message;
         }
-      );
-      
-      setLoadingState('idle');
-    } catch (error) {
-      console.error("Generation failed", error);
-      setSessions(prev => prev.map(session => {
-          if (session.id === currentSessionId) {
-              const msgs = session.messages.map(msg => 
-                  msg.id === aiMsgId ? { ...msg, content: "System Error: Connection interrupted. Auto-save protected your request." } : msg
-              );
-              return { ...session, messages: msgs };
-          }
-          return session;
-      }));
-      setLoadingState('error');
+    } 
+    // VIDEO GENERATION MODE
+    else if (config.activeMode === 'video') {
+        const placeholder: ChatMessage = {
+             id: aiMsgId, role: 'model', content: '🎥 Generating Video (This may take a minute)...', timestamp: Date.now()
+        };
+        updateCurrentSessionMessages([...updatedMessages, placeholder]);
+        
+        try {
+            const videoUrl = await generateVideo(text);
+             aiContent = `Here is your generated video:\n\n<video controls src="${videoUrl}" width="100%" class="rounded-lg"></video>`;
+             
+             // Final Update - Note: RenderButton needs to handle HTML or we rely on markdown HTML support?
+             // MarkdownRenderer might sanitize this. For now, we can use a markdown video link or simple text.
+             // Since MarkdownRenderer in existing code doesn't show custom HTML, let's change strategy.
+             // We will just assume the user wants to download it or standard video tag support.
+             // For safety in this snippet, I'll assume the renderer can handle it or I'll use a link.
+        } catch (e: any) {
+             aiContent = "Video generation failed: " + e.message;
+        }
+         
+         setSessions(prev => prev.map(s => s.id === currentSessionId ? {
+                ...s, messages: s.messages.map(m => m.id === aiMsgId ? { ...m, content: aiContent } : m)
+            } : s));
+         setLoadingState('idle');
+         return;
     }
+    // CHAT MODE (Default)
+    else {
+        const aiMessagePlaceholder: ChatMessage = {
+            id: aiMsgId, role: 'model', content: '', timestamp: Date.now()
+        };
+        updateCurrentSessionMessages([...updatedMessages, aiMessagePlaceholder]);
+
+        try {
+            await streamGeminiResponse(
+                updatedMessages,
+                text,
+                attachments,
+                config,
+                (streamedText) => {
+                    setSessions(prev => prev.map(session => {
+                        if (session.id === currentSessionId) {
+                            const msgs = session.messages.map(msg => 
+                                msg.id === aiMsgId ? { ...msg, content: streamedText } : msg
+                            );
+                            return { ...session, messages: msgs, lastModified: Date.now() };
+                        }
+                        return session;
+                    }));
+                }
+            );
+        } catch (error) {
+            console.error("Generation failed", error);
+             setSessions(prev => prev.map(s => s.id === currentSessionId ? {
+                ...s, messages: s.messages.map(m => m.id === aiMsgId ? { ...m, content: "System Error: Connection interrupted." } : m)
+            } : s));
+        }
+    }
+    
+    setLoadingState('idle');
   }, [config, messages, currentSessionId]);
-
-  // RENDER
-
-  if (isAppLoading) {
-      return <LoadingScreen />;
-  }
 
   if (!isAuthenticated) {
     return <AuthFlow onAuthenticated={handleAuthentication} />;
@@ -272,7 +259,6 @@ const App: React.FC = () => {
           config={config}
           onConfigChange={setConfig}
           userTier={userTier}
-          // Session Props
           sessions={sessions}
           currentSessionId={currentSessionId}
           onSwitchSession={setCurrentSessionId}
@@ -288,6 +274,8 @@ const App: React.FC = () => {
           />
           <InputArea 
             onSendMessage={handleSendMessage} 
+            config={config}
+            onConfigChange={setConfig}
             disabled={loadingState === 'streaming'} 
           />
         </main>

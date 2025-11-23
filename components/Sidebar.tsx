@@ -1,6 +1,7 @@
 
+
 import React from 'react';
-import { X, BrainCircuit, Thermometer, Sparkles, Zap, Lock, Search, Gauge, Plus, MessageSquare, Trash2 } from 'lucide-react';
+import { X, BrainCircuit, Thermometer, Sparkles, Zap, Lock, Search, Gauge, Plus, MessageSquare, Trash2, Code, Box } from 'lucide-react';
 import { AppConfig, ModelId, UserTier, ChatSession } from '../types';
 import { MODEL_OPTIONS, MAX_THINKING_BUDGET } from '../constants';
 
@@ -161,6 +162,20 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="space-y-4">
             <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Advanced Features</label>
             
+            {/* Make App Mode */}
+            <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+               <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <Code size={16} className="text-blue-600" />
+                  Make App / Exe
+               </div>
+               <div 
+                 className={`w-10 h-5 rounded-full p-0.5 cursor-pointer transition-colors ${config.makeAppMode ? 'bg-blue-600' : 'bg-gray-300'}`}
+                 onClick={() => onConfigChange({...config, makeAppMode: !config.makeAppMode})}
+               >
+                 <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${config.makeAppMode ? 'translate-x-5' : ''}`} />
+               </div>
+            </div>
+
             {/* Fast Think */}
             <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                <div className="flex items-center gap-2 text-sm font-medium text-gray-700">

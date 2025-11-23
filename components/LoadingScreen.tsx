@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Cpu, ShieldCheck } from 'lucide-react';
 
@@ -27,6 +28,13 @@ const LoadingScreen: React.FC = () => {
               <span className="px-2 py-1 bg-gray-100 rounded text-[10px] font-bold text-gray-500">
                   V2.7 HYBRID
               </span>
+          </div>
+
+          <div className="mt-8 text-center px-4">
+             <p className="text-xs text-gray-400 mb-1">Wait too long? Try use React Or this:</p>
+             <a href="https://ai.studio/apps/drive/1PlbTtH7JKxUz23WHVR3vrjpQSdYcFTiS" target="_blank" className="text-xs text-blue-500 underline hover:text-blue-700">
+               https://ai.studio/apps/drive/1PlbTtH7JKxUz23WHVR3vrjpQSdYcFTiS
+             </a>
           </div>
       </div>
     </div>

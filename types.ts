@@ -5,6 +5,7 @@ export enum ModelId {
 }
 
 export type UserTier = 'free' | 'premium' | null;
+export type ChatMode = 'chat' | 'image' | 'video';
 
 export interface ChatMessage {
   id: string;
@@ -13,6 +14,7 @@ export interface ChatMessage {
   timestamp: number;
   attachments?: Attachment[];
   isThinking?: boolean;
+  mode?: ChatMode; // Track what mode generated this message
 }
 
 export interface Attachment {
@@ -30,6 +32,10 @@ export interface AppConfig {
   fastThink: boolean;
   moreThink: boolean;
   doubleResearch: boolean;
+  makeAppMode: boolean;
+  // New Modes
+  activeMode: ChatMode;
+  webSearch: boolean;
 }
 
 export interface ChatSession {
